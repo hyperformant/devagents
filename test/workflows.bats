@@ -41,9 +41,76 @@ setup() {
   [ "$output" = "true" ]
 }
 
-@test "plan job if: equals the PR guard expression" {
+@test "plan job if: is only the fork check (R33)" {
   run yq '.jobs.plan.if' "$RUN"
-  [ "$output" = "github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && contains(fromJSON('[\"OWNER\",\"MEMBER\",\"COLLABORATOR\"]'), github.event.pull_request.author_association))" ]
+  [ "$output" = "github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository" ]
+  ! grep -q author_association "$RUN"
+}
+
+@test "plan job permissions are exactly contents: read" {
+  run yq -o=json -I=0 '.jobs.plan.permissions' "$RUN"
+  [ "$output" = '{"contents":"read"}' ]
+}
+
+@test "permission step: PR-only, env-only inputs, trusts admin/write only" {
+  run yq '.jobs.plan.steps[] | select(.id == "perm") | .if' "$RUN"
+  [ "$output" = "github.event_name == 'pull_request'" ]
+  run yq '.jobs.plan.steps[] | select(.id == "perm") | .run' "$RUN"
+  [ "$status" -eq 0 ]
+  [[ "$output" != *'${{'* ]]
+  [[ "$output" == *'collaborators/$AUTHOR/permission'* ]]
+  [[ "$output" == *'admin|write'* ]]
+  run yq -o=json -I=0 '.jobs.plan.steps[] | select(.id == "perm") | .env' "$RUN"
+  [ "$output" = '{"GH_TOKEN":"${{ github.token }}","REPO":"${{ github.repository }}","AUTHOR":"${{ github.event.pull_request.user.login }}"}' ]
+}
+
+@test "plan-due.sh step is gated on the trusted output for PR events" {
+  run yq '.jobs.plan.steps[] | select(.id == "plan") | .if' "$RUN"
+  [ "$output" = "github.event_name != 'pull_request' || steps.perm.outputs.trusted == 'true'" ]
+}
+
+# Run the permission step's script against a fake gh. $1 = gh stdout, $2 = gh exit code.
+run_perm() {
+  local bin="$BATS_TEST_TMPDIR/bin"
+  mkdir -p "$bin"
+  printf '#!/bin/sh\nprintf "%%s" "$FAKE_OUT"\nexit "$FAKE_RC"\n' > "$bin/gh"
+  chmod +x "$bin/gh"
+  yq '.jobs.plan.steps[] | select(.id == "perm") | .run' "$RUN" > "$BATS_TEST_TMPDIR/perm.sh"
+  export GITHUB_OUTPUT="$BATS_TEST_TMPDIR/out"
+  : > "$GITHUB_OUTPUT"
+  PATH="$bin:$PATH" FAKE_OUT="$1" FAKE_RC="$2" REPO=o/r AUTHOR=someone \
+    run bash "$BATS_TEST_TMPDIR/perm.sh"
+  [ "$status" -eq 0 ]
+}
+
+@test "permission script: admin is trusted" {
+  run_perm admin 0
+  [ "$(cat "$GITHUB_OUTPUT")" = "trusted=true" ]
+}
+
+@test "permission script: write is trusted" {
+  run_perm write 0
+  [ "$(cat "$GITHUB_OUTPUT")" = "trusted=true" ]
+}
+
+@test "permission script: read is untrusted" {
+  run_perm read 0
+  [ "$(cat "$GITHUB_OUTPUT")" = "trusted=false" ]
+}
+
+@test "permission script: none is untrusted" {
+  run_perm none 0
+  [ "$(cat "$GITHUB_OUTPUT")" = "trusted=false" ]
+}
+
+@test "permission script: empty output is untrusted" {
+  run_perm "" 0
+  [ "$(cat "$GITHUB_OUTPUT")" = "trusted=false" ]
+}
+
+@test "permission script: gh failure is untrusted and the step still succeeds" {
+  run_perm "" 1
+  [ "$(cat "$GITHUB_OUTPUT")" = "trusted=false" ]
 }
 
 @test "plan job reads repo config at the default branch" {

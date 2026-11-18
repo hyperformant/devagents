@@ -15,7 +15,7 @@ on:
 
 jobs:
   plan:
-    if: github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association))
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -26,6 +26,23 @@ jobs:
       matrix: ${{ steps.plan.outputs.matrix }}
       has_jobs: ${{ steps.plan.outputs.has_jobs }}
     steps:
+      # Event payloads mislabel private org members as CONTRIBUTORs, so check real repo permission.
+      - id: perm
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+        run: |
+          set -euo pipefail
+          level=$(gh api "repos/$REPO/collaborators/$AUTHOR/permission" --jq .permission 2>/dev/null) || level=""
+          case "$level" in
+            admin|write) echo "trusted=true" >> "$GITHUB_OUTPUT" ;;
+            *)
+              echo "Skipping: $AUTHOR has '${level:-unknown}' access, not write or admin."
+              echo "trusted=false" >> "$GITHUB_OUTPUT"
+              ;;
+          esac
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: hyperformant/devagents
@@ -45,6 +62,7 @@ jobs:
           working_directory: .devagents
           install_args: yq uv python pipx:check-jsonschema
       - id: plan
+        if: github.event_name != 'pull_request' || steps.perm.outputs.trusted == 'true'
         env:
           CENTRAL: .devagents/devagents.yml
           REPO_CONFIG: repo/.github/devagents.yml
