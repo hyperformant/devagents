@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+# Fake gh for subscribe.bats. Never contacts GitHub.
+# Env: GH_LOG GH_STDIN_LOG FAKE_REPO FAKE_ORIGIN [FAKE_OVERLAY FAKE_REMOTE_BRANCH
+#      FAKE_AUTH FAKE_INSTALLATIONS FAKE_SECRETS FAKE_ORG_SECRETS FAKE_PR_LIST]
+set -euo pipefail
+FIX="$(cd "$(dirname "${BASH_SOURCE[0]}")/../fixtures/subscribe" && pwd)"
+printf '%s\n' "$*" >> "${GH_LOG:?}"
+
+case "$1 ${2:-}" in
+  "auth status")
+    [ "${FAKE_AUTH:-ok}" = ok ] || { echo "not logged in" >&2; exit 1; }
+    ;;
+  "api "*)
+    for a in "$@"; do
+      case "$a" in
+        orgs/*/installations | user/installations) cat "${FAKE_INSTALLATIONS:-$FIX/gh/installations.json}"; exit 0 ;;
+        repos/*/actions/secrets*) cat "${FAKE_SECRETS:-$FIX/gh/secrets-none.json}"; exit 0 ;;
+        repos/*/actions/organization-secrets*) cat "${FAKE_ORG_SECRETS:-$FIX/gh/secrets-none.json}"; exit 0 ;;
+      esac
+    done
+    echo "fake gh: unhandled api call" >&2; exit 1
+    ;;
+  "secret set")
+    cat >> "${GH_STDIN_LOG:?}"
+    ;;
+  "repo view")
+    # `gh repo view <repo>` canonicalizes (lowercases unless FAKE_CANON is set).
+    # `gh repo view` with no repo reads the cwd's origin remote and fails outside a clone.
+    arg=""
+    shift 2
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        --json | -q | --jq) shift ;;
+        -*) ;;
+        *) arg="${arg:-$1}" ;;
+      esac
+      shift
+    done
+    if [ -z "$arg" ]; then
+      url="$(git remote get-url origin 2> /dev/null)" || exit 1
+      url="${url%.git}"
+      case "$url" in
+        https://github.com/* | ssh://git@github.com/*) arg="${url#*github.com/}" ;;
+        git@github.com:*) arg="${url#git@github.com:}" ;;
+        *) exit 1 ;;
+      esac
+    fi
+    if [ -n "${FAKE_CANON:-}" ]; then echo "$FAKE_CANON"; else printf '%s\n' "$arg" | tr '[:upper:]' '[:lower:]'; fi
+    ;;
+  "pr list") cat "${FAKE_PR_LIST:-$FIX/gh/pr-none.json}" ;;
+  "pr create") echo "https://github.com/fake/pull/1" ;;
+  "repo clone")
+    dir="$4"
+    git init -q "$dir"
+    cp -a "$FIX/repos/${FAKE_REPO:?}/." "$dir/"
+    [ -z "${FAKE_OVERLAY:-}" ] || cp -a "$FAKE_OVERLAY/." "$dir/"
+    git -C "$dir" add -A
+    git -C "$dir" -c user.name=fake -c user.email=fake@example.com commit -q -m init
+    git -C "$dir" branch -M main
+    git init -q --bare "${FAKE_ORIGIN:?}"
+    git -C "$dir" remote add origin "$FAKE_ORIGIN"
+    git -C "$dir" push -q origin main
+    if [ -n "${FAKE_REMOTE_BRANCH:-}" ]; then
+      git -C "$dir" checkout -q -b "$FAKE_REMOTE_BRANCH"
+      git -C "$dir" -c user.name=fake -c user.email=fake@example.com commit -q --allow-empty -m "old pr"
+      git -C "$dir" push -q origin "$FAKE_REMOTE_BRANCH"
+      git -C "$dir" checkout -q main
+      git -C "$dir" branch -q -D "$FAKE_REMOTE_BRANCH"
+      git -C "$dir" update-ref -d "refs/remotes/origin/$FAKE_REMOTE_BRANCH" 2> /dev/null || true
+    fi
+    ;;
+  *) echo "fake gh: unhandled: $*" >&2; exit 1 ;;
+esac

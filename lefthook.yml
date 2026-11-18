@@ -1,0 +1,7 @@
+extends:
+  - lefthook/devagents.yml
+
+pre-push:
+  jobs:
+    - name: bats
+      run: bats test/

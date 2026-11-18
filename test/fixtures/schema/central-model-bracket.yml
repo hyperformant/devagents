@@ -1,0 +1,5 @@
+defaults: { model: "claude-opus-5-5[1m]", allowed_tools: [Read] }
+jobs:
+  x:
+    triggers: [manual]
+    prompt: hi

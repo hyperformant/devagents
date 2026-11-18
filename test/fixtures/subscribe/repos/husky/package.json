@@ -1,0 +1,6 @@
+{
+  "name": "husky",
+  "scripts": {
+    "prepare": "husky"
+  }
+}

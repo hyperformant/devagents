@@ -1,0 +1,51 @@
+# Sets nothing at hook level so it cannot change a subscriber's own jobs.
+# Shared quick checks for devagents subscribers. Hooks never block on
+# infrastructure: $CI set or a missing tool skips the work and exits 0.
+pre-commit:
+  jobs:
+    - name: devagents-shellcheck
+      run: shellcheck {staged_files}
+      file_types:
+        - text/x-shellscript
+      skip:
+        - run: 'test -n "$CI"'
+        - run: "! command -v shellcheck"
+    - name: devagents-actionlint
+      run: actionlint {staged_files}
+      glob:
+        - ".github/workflows/*.yml"
+        - ".github/workflows/*.yaml"
+      skip:
+        - run: 'test -n "$CI"'
+        - run: "! command -v actionlint"
+    - name: devagents-hadolint
+      run: hadolint {staged_files}
+      glob:
+        - "Dockerfile"
+        - "Dockerfile.*"
+        - "*.dockerfile"
+        - "**/Dockerfile"
+        - "**/Dockerfile.*"
+        - "**/*.dockerfile"
+      skip:
+        - run: 'test -n "$CI"'
+        - run: "! command -v hadolint"
+
+pre-push:
+  jobs:
+    - name: devagents-dupes
+      run: nr dupes
+      env:
+        NI_DEFAULT_AGENT: npm
+      skip:
+        - run: 'test -n "$CI"'
+        - run: "! command -v nr"
+        - run: "! jq -e '.scripts.dupes' package.json"
+    - name: devagents-unused
+      run: nr unused
+      env:
+        NI_DEFAULT_AGENT: npm
+      skip:
+        - run: 'test -n "$CI"'
+        - run: "! command -v nr"
+        - run: "! jq -e '.scripts.unused' package.json"

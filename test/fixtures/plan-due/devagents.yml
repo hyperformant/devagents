@@ -1,0 +1,26 @@
+# yaml-language-server: $schema=../../../schema/devagents.schema.json
+defaults:
+  model: fable
+  effort: high
+  fallback_model: opus
+  max_turns: 60
+  timeout_minutes: 90
+  allowed_tools: [Read, Glob, Grep]
+jobs:
+  wk:
+    triggers: [schedule, pr]
+    schedule: weekly
+    prompt: Weekly job.
+    pre_steps: [scripts/one.sh]
+    with: { a: 1, b: x }
+  mo:
+    triggers: [schedule]
+    schedule: monthly
+    prompt: Monthly job.
+  man:
+    triggers: [manual]
+    prompt: Manual job.
+  tools:
+    triggers: [manual]
+    prompt: Tools job.
+    allowed_tools: [Read, Edit, "Bash(git commit *)"]

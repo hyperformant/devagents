@@ -1,0 +1,12 @@
+{
+  "name": "devagents",
+  "owner": { "name": "Hyperformant" },
+  "metadata": { "description": "Subscribable skills, git hooks and scheduled AI jobs" },
+  "plugins": [
+    {
+      "name": "devagents",
+      "source": "./plugins/devagents",
+      "description": "Skills, git hooks and scheduled AI jobs that repos subscribe to"
+    }
+  ]
+}

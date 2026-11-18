@@ -1,0 +1,11 @@
+skip: [codebase-audit]
+jobs:
+  smoke:
+    max_turns: 10
+    with: { a: 1, b: x, c: true }
+commands:
+  dupes: ./scripts/dupes.sh
+test_budget:
+  ratio: 2.0
+  areas: { src/cli: 1.5 }
+  exclude: [tests/fixtures/**]

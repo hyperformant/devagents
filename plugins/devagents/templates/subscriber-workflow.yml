@@ -1,0 +1,31 @@
+name: devagents
+
+on:
+  schedule:
+    - cron: '__CRON_MINUTE__ __CRON_HOUR__ * * *'
+  pull_request:
+    types: [opened, reopened, ready_for_review]
+  workflow_dispatch:
+    inputs:
+      job:
+        description: Run only this named job now (leave empty to run whatever is due)
+        type: string
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  id-token: write
+  checks: read
+  statuses: read
+  actions: read
+
+jobs:
+  devagents:
+    uses: hyperformant/devagents/.github/workflows/run-due.yml@main
+    with:
+      job: ${{ inputs.job }}
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}

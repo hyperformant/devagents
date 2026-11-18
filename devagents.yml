@@ -1,0 +1,12 @@
+# yaml-language-server: $schema=./schema/devagents.schema.json
+defaults:
+  model: fable
+  effort: high
+  fallback_model: opus
+  max_turns: 60
+  timeout_minutes: 90
+  allowed_tools: [Read, Glob, Grep]
+jobs:
+  smoke:
+    triggers: [manual]
+    prompt: Report the repo name, the trigger, and the skills you can see. Change nothing.

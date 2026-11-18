@@ -1,0 +1,8 @@
+{
+  "name": "devagents",
+  "version": "0.1.0",
+  "description": "Skills, git hooks and scheduled AI jobs that repos subscribe to",
+  "author": { "name": "Hyperformant" },
+  "license": "MIT",
+  "repository": "https://github.com/hyperformant/devagents"
+}

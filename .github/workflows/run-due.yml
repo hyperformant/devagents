@@ -1,0 +1,114 @@
+name: run-due
+
+on:
+  workflow_call:
+    inputs:
+      job:
+        type: string
+        default: ""
+      toolkit_ref:
+        type: string
+        default: main
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN:
+        required: true
+
+jobs:
+  plan:
+    if: github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      # mise walks up from .devagents/ into the subscriber checkout; stop at the workspace root.
+      MISE_CEILING_PATHS: ${{ github.workspace }}
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+      has_jobs: ${{ steps.plan.outputs.has_jobs }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: hyperformant/devagents
+          ref: ${{ inputs.toolkit_ref }}
+          path: .devagents
+          persist-credentials: false
+      # Config is always read from the default branch, never a PR head.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: repo
+          sparse-checkout: .github/devagents.yml
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      - uses: jdx/mise-action@236a21c3b91f5db6d4e174b348674a0f0caac06d # v5.2.9
+        with:
+          working_directory: .devagents
+          install_args: yq uv python pipx:check-jsonschema
+      - id: plan
+        env:
+          CENTRAL: .devagents/devagents.yml
+          REPO_CONFIG: repo/.github/devagents.yml
+          SCHEMA_DIR: .devagents/schema
+          INPUT_JOB: ${{ inputs.job }}
+        run: bash .devagents/plugins/devagents/scripts/plan-due.sh
+
+  run:
+    needs: plan
+    if: needs.plan.outputs.has_jobs == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ matrix.timeout_minutes }}
+    env:
+      MISE_CEILING_PATHS: ${{ github.workspace }}
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      checks: read
+      statuses: read
+      actions: read
+    strategy:
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+      max-parallel: 1
+      fail-fast: false
+    concurrency:
+      group: devagents-${{ github.repository }}-${{ matrix.name }}-${{ github.event.pull_request.number || 'scheduled' }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Remove tracked toolkit paths so a PR cannot shadow them
+        run: rm -rf .devagents .devagents-out
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: hyperformant/devagents
+          ref: ${{ inputs.toolkit_ref }}
+          path: .devagents
+          persist-credentials: false
+      - name: Keep toolkit dirs out of git status
+        run: |
+          printf '%s\n' '.devagents/' '.devagents-out/' >> .git/info/exclude
+      - uses: jdx/mise-action@236a21c3b91f5db6d4e174b348674a0f0caac06d # v5.2.9
+        with:
+          working_directory: .devagents
+          install_args: ripgrep yq
+      - name: Pre-steps
+        env:
+          PRE_STEPS_JSON: ${{ matrix.pre_steps_json }}
+          DEVAGENTS_OUT: .devagents-out
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          jq -e 'type == "array" and all(type == "string")' <<<"$PRE_STEPS_JSON" >/dev/null
+          mapfile -t steps < <(jq -r '.[]' <<<"$PRE_STEPS_JSON")
+          mkdir -p "$DEVAGENTS_OUT"
+          for step in "${steps[@]}"; do
+            bash ".devagents/plugins/devagents/$step"
+          done
+      - uses: anthropics/claude-code-action@469588f42e6b1e94cd14ad09dccfeaec772ce0fd # v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: ${{ matrix.prompt_full }}
+          claude_args: ${{ matrix.claude_args }}

@@ -1,0 +1,6 @@
+{
+  "name": "has-lefthook",
+  "scripts": {
+    "prepare": "echo prep"
+  }
+}

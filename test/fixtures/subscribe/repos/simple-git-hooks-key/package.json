@@ -1,0 +1,10 @@
+{
+  "name": "fresh-js",
+  "version": "1.0.0",
+  "scripts": {
+    "test": "echo ok"
+  },
+  "simple-git-hooks": {
+    "pre-commit": "echo hi"
+  }
+}

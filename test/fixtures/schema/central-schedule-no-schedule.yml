@@ -1,0 +1,4 @@
+jobs:
+  x:
+    triggers: [schedule]
+    prompt: hi

@@ -1,0 +1,5 @@
+jobs:
+  x:
+    triggers: [manual]
+    prompt: hi
+    effort: ultra

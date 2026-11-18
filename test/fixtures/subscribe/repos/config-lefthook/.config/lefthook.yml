@@ -1,0 +1,5 @@
+# my hooks
+pre-commit:
+  jobs:
+    - name: mine
+      run: echo mine

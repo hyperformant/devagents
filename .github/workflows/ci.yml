@@ -1,0 +1,42 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@236a21c3b91f5db6d4e174b348674a0f0caac06d # v5.2.9
+      - name: Tests
+        run: bats test/
+      - name: Schemas and config
+        run: |
+          check-jsonschema --check-metaschema schema/*.json
+          check-jsonschema --schemafile schema/devagents.schema.json devagents.yml
+      - name: actionlint
+        run: actionlint .github/workflows/*.yml
+      - name: shellcheck
+        run: shellcheck plugins/devagents/scripts/*.sh plugins/devagents/evals/*.sh test/bin/*
+      - name: lefthook validate
+        run: lefthook validate
+      - name: Install Claude CLI
+        run: npm install --global @anthropic-ai/claude-code@2.1.327
+      - name: Plugin validate
+        run: |
+          v=$(claude --version)
+          case "$v" in
+            2.1.327*) ;;
+            *) echo "expected claude 2.1.327, got: $v" >&2; exit 1 ;;
+          esac
+          claude plugin validate --strict .
+          claude plugin validate --strict plugins/devagents

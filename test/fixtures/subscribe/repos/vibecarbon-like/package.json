@@ -1,0 +1,6 @@
+{
+  "name": "vibecarbon-like",
+  "scripts": {
+    "prepare": "git config core.hooksPath .githooks"
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "devagents per-repo config (.github/devagents.yml)",
+  "type": [
+    "object",
+    "null"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "skip": {
+      "type": "array",
+      "items": {
+        "$ref": "devagents.schema.json#/$defs/jobName"
+      }
+    },
+    "jobs": {
+      "type": "object",
+      "propertyNames": {
+        "$ref": "devagents.schema.json#/$defs/jobName"
+      },
+      "additionalProperties": {
+        "$ref": "devagents.schema.json#/$defs/override"
+      }
+    },
+    "commands": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "test_budget": {
+      "type": "object"
+    }
+  }
+}

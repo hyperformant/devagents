@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# Fake lefthook for subscribe.bats: logs "<cwd>: <argv>".
+printf '%s: %s\n' "$PWD" "$*" >> "${LH_LOG:?}"

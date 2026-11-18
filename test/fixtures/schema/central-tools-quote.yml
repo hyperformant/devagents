@@ -1,0 +1,6 @@
+defaults: { allowed_tools: [Read] }
+jobs:
+  x:
+    triggers: [manual]
+    prompt: hi
+    allowed_tools: ["Bash(git *)\""]
