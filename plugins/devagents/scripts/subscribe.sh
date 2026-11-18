@@ -48,7 +48,7 @@ owner="${repo%%/*}"
 
 # 2. Claude GitHub App (best effort; the API may be forbidden).
 app_url=https://github.com/apps/claude
-inst="$(gh api "orgs/$owner/installations" 2> /dev/null || gh api user/installations 2> /dev/null || true)"
+inst="$(gh api "orgs/$owner/installations" 2> /dev/null)" || inst="$(gh api user/installations 2> /dev/null)" || inst=""
 if [ -z "$inst" ]; then
   echo "Could not check the Claude GitHub App; make sure it is installed: $app_url"
 elif ! jq -e '.installations[]? | select(.app_slug == "claude")' <<< "$inst" > /dev/null 2>&1; then

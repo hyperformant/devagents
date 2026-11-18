@@ -41,10 +41,25 @@ setup() {
   [ "$output" = "true" ]
 }
 
-@test "plan job if: is only the fork check (R33)" {
+@test "plan job if: is an event allow-list plus the fork check (R33)" {
   run yq '.jobs.plan.if' "$RUN"
-  [ "$output" = "github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository" ]
+  [ "$output" = "github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)" ]
   ! grep -q author_association "$RUN"
+}
+
+@test "pull_request_target and other events do not pass the plan guard" {
+  run yq '.jobs.plan.if' "$RUN"
+  [[ "$output" != *pull_request_target* ]]
+  [[ "$output" != *"!="* ]]
+  run grep -o "github.event_name == '[a-z_]*'" <<< "$output"
+  [ "$output" = "$(printf "github.event_name == 'schedule'\ngithub.event_name == 'workflow_dispatch'\ngithub.event_name == 'pull_request'")" ]
+}
+
+@test "gating chain: plan output feeds the run job's if" {
+  run yq '.jobs.run.if' "$RUN"
+  [ "$output" = "needs.plan.outputs.has_jobs == 'true'" ]
+  run yq '.jobs.plan.outputs.has_jobs' "$RUN"
+  [ "$output" = '${{ steps.plan.outputs.has_jobs }}' ]
 }
 
 @test "plan job permissions are exactly contents: read" {
@@ -105,6 +120,17 @@ run_perm() {
 
 @test "permission script: empty output is untrusted" {
   run_perm "" 0
+  [ "$(cat "$GITHUB_OUTPUT")" = "trusted=false" ]
+}
+
+@test "permission script: JSON 404 body with exit 1 is untrusted" {
+  run_perm '{"message":"Not Found","status":"404"}' 1
+  [ "$(cat "$GITHUB_OUTPUT")" = "trusted=false" ]
+  [[ "$output" == "::warning::devagents: could not read someone's permission on o/r; skipping (fail closed)" ]]
+}
+
+@test "permission script: admin on stdout with exit 1 is untrusted" {
+  run_perm admin 1
   [ "$(cat "$GITHUB_OUTPUT")" = "trusted=false" ]
 }
 

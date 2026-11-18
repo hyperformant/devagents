@@ -8,10 +8,10 @@
 > - **Tools:** mise (`mise.toml` + `mise.lock`, `jdx/mise-action` in CI) installs and pins every CLI tool.
 > - **Config:** JSON Schemas (`schema/*.schema.json`) checked with check-jsonschema validate the central and per-repo config; yq and jq do the merging.
 > - **Package-manager detection:** `nr` from @antfu/ni. The command contract keeps the `commands:` map and moves to Plan 2.
-> - **PR guard:** a fork-only workflow `if:` plus a step that checks the author's repo permission (R33). On PR events, the per-repo config is read from the default branch.
+> - **PR guard:** a workflow `if:` that allows only `schedule`, `workflow_dispatch` and same-repo `pull_request` events, plus a step that checks the author's repo permission (R33). On PR events, the per-repo config is read from the default branch.
 > - **Tests and glue:** bats-core runs the tests. The remaining glue (`plan-due.sh`, `subscribe.sh`) is bash.
 > - **R33:** author_association is CONTRIBUTOR for private org members in event payloads; the guard checks the author's repo permission instead.
-- **Secret passing (R26, final review):** the stub passes `CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}` explicitly instead of `secrets: inherit`. `inherit` works only for callers in the same organization or enterprise, and most subscribers are under a different owner than the toolkit. `inherit` would also hand every subscriber secret to a workflow referenced at `@main`.
+> - **Secret passing (R26, final review):** the stub passes `CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}` explicitly instead of `secrets: inherit`. `inherit` works only for callers in the same organization or enterprise, and most subscribers are under a different owner than the toolkit. `inherit` would also hand every subscriber secret to a workflow referenced at `@main`.
 
 ## Context
 
