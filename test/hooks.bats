@@ -2,7 +2,10 @@
 
 setup() {
   ROOT="$(cd "$BATS_TEST_DIRNAME/.." && pwd)"
-  export PATH="$HOME/.local/share/mise/shims:$HOME/.local/bin:$PATH"
+  # Real tool dirs from the toolkit's mise.toml, not shims: the hooks run in a
+  # temp repo, where shims find no version unless a global mise config exists.
+  export PATH="$HOME/.local/bin:$PATH"
+  PATH="$(mise bin-paths -C "$ROOT" | paste -sd: -):$PATH"
   unset CI
   REPO="$BATS_TEST_TMPDIR/repo"
   mkdir -p "$REPO"
