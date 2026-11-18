@@ -301,6 +301,14 @@ assert_dry_run_wrote_nothing() {
   [[ "$output" == *"https://github.com/apps/claude"* ]]
 }
 
+@test "App check failing on both endpoints says could not check, never not found" {
+  export FAKE_REPO=fresh-js FAKE_INSTALLATIONS=fail
+  sub "$REPO"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Could not check the Claude GitHub App"* ]]
+  [[ "$output" != *"not found"* ]]
+}
+
 @test "gh not authenticated exits 1" {
   export FAKE_REPO=fresh-js FAKE_AUTH=fail
   sub "$REPO"

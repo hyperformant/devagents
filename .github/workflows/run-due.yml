@@ -15,7 +15,7 @@ on:
 
 jobs:
   plan:
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -35,11 +35,16 @@ jobs:
           AUTHOR: ${{ github.event.pull_request.user.login }}
         run: |
           set -euo pipefail
-          level=$(gh api "repos/$REPO/collaborators/$AUTHOR/permission" --jq .permission 2>/dev/null) || level=""
+          ok=1
+          level=$(gh api "repos/$REPO/collaborators/$AUTHOR/permission" --jq .permission) || { ok=0; level=""; }
           case "$level" in
             admin|write) echo "trusted=true" >> "$GITHUB_OUTPUT" ;;
             *)
-              echo "Skipping: $AUTHOR has '${level:-unknown}' access, not write or admin."
+              if [ "$ok" = 1 ]; then
+                echo "Skipping: $AUTHOR has '${level:-unknown}' access, not write or admin."
+              else
+                echo "::warning::devagents: could not read $AUTHOR's permission on $REPO; skipping (fail closed)"
+              fi
               echo "trusted=false" >> "$GITHUB_OUTPUT"
               ;;
           esac

@@ -13,7 +13,9 @@ case "$1 ${2:-}" in
   "api "*)
     for a in "$@"; do
       case "$a" in
-        orgs/*/installations | user/installations) cat "${FAKE_INSTALLATIONS:-$FIX/gh/installations.json}"; exit 0 ;;
+        orgs/*/installations | user/installations)
+          if [ "${FAKE_INSTALLATIONS:-}" = fail ]; then echo '{"message":"Not Found","status":"404"}'; exit 1; fi
+          cat "${FAKE_INSTALLATIONS:-$FIX/gh/installations.json}"; exit 0 ;;
         repos/*/actions/secrets*) cat "${FAKE_SECRETS:-$FIX/gh/secrets-none.json}"; exit 0 ;;
         repos/*/actions/organization-secrets*) cat "${FAKE_ORG_SECRETS:-$FIX/gh/secrets-none.json}"; exit 0 ;;
       esac

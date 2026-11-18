@@ -66,9 +66,9 @@
   - `pull_request` events run in mode `pr`; `schedule` and `workflow_dispatch` run in mode `bot`.
 - **PR guard (R33):** a workflow `if:` on the plan job, exactly:
   ```
-  github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+  github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
   ```
-  A `perm` step then checks the author's real repo permission (`gh api repos/$REPO/collaborators/$AUTHOR/permission`) and trusts only `admin` or `write`. Anything else fails closed: the step succeeds with `trusted=false` and `plan-due.sh` is skipped. `author_association` is not used.
+  Any other event, including `pull_request_target`, is skipped. A `perm` step then checks the author's real repo permission (`gh api repos/$REPO/collaborators/$AUTHOR/permission`) and trusts only `admin` or `write`. Anything else fails closed: the step succeeds with `trusted=false` and `plan-due.sh` is skipped. `author_association` is not used.
 - **Config trust:** the subscriber's `.github/devagents.yml` is always read from the **default branch**, never from a PR head.
 - **Config validation:**
   - `model` and `fallback_model` match `^[A-Za-z0-9][A-Za-z0-9._\[\]-]*$`.
@@ -273,7 +273,8 @@
   1. **`plan` job:**
      - Check out the toolkit at `inputs.toolkit_ref` into `.devagents`.
      - Do a sparse checkout of the subscriber's `.github/devagents.yml` at `github.event.repository.default_branch` into `repo`.
-     - Run `mise-action` with `working_directory: .devagents`, then `plan-due.sh`.
+     - First, for `pull_request` events, a `perm` step (id `perm`) calls `gh api repos/$REPO/collaborators/$AUTHOR/permission` with `GH_TOKEN`, `REPO` and `AUTHOR` passed through `env:`. It writes `trusted=true` only for `admin` or `write`, and `trusted=false` otherwise, including on API errors (with a `::warning::`). It always exits 0.
+     - Run `mise-action` with `working_directory: .devagents`, then `plan-due.sh` gated on `github.event_name != 'pull_request' || steps.perm.outputs.trusted == 'true'`. When it is skipped, the job outputs are empty and the `run` job's `has_jobs == 'true'` condition skips it.
   2. **`run` job:**
      - Check out the subscriber at `github.event.pull_request.head.sha || github.sha` with `fetch-depth: 0`, and the toolkit into `.devagents`.
      - Append `.devagents/` and `.devagents-out/` to `.git/info/exclude`.
