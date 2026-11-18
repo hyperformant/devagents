@@ -64,10 +64,11 @@
 - **Triggers:**
   - The values are `schedule`, `pr` and `manual`.
   - `pull_request` events run in mode `pr`; `schedule` and `workflow_dispatch` run in mode `bot`.
-- **PR guard:** a workflow `if:` on the plan job, exactly:
+- **PR guard (R33):** a workflow `if:` on the plan job, exactly:
   ```
-  github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association))
+  github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
   ```
+  A `perm` step then checks the author's real repo permission (`gh api repos/$REPO/collaborators/$AUTHOR/permission`) and trusts only `admin` or `write`. Anything else fails closed: the step succeeds with `trusted=false` and `plan-due.sh` is skipped. `author_association` is not used.
 - **Config trust:** the subscriber's `.github/devagents.yml` is always read from the **default branch**, never from a PR head.
 - **Config validation:**
   - `model` and `fallback_model` match `^[A-Za-z0-9][A-Za-z0-9._\[\]-]*$`.
@@ -263,7 +264,7 @@
       - `workflow_dispatch` input `job`
     - `stub calls hyperformant/devagents/.github/workflows/run-due.yml@main and passes CLAUDE_CODE_OAUTH_TOKEN explicitly under secrets (R26, never inherit)`.
   - **`run-due.yml`:**
-    - `plan job if: equals the PR guard expression`.
+    - `plan job if: is only the fork check`, plus the `perm` step tests (env-only inputs, admin/write trusted, read/none/empty/gh-failure untrusted).
     - `plan job reads repo config at the default branch`.
     - `every uses: is pinned to a 40-hex SHA`.
     - `run job: max-parallel 1, fail-fast false, timeout-minutes from matrix, concurrency group includes job name and PR number`.
