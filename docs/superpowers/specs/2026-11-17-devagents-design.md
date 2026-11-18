@@ -12,6 +12,29 @@
 > - **Tests and glue:** bats-core runs the tests. The remaining glue (`plan-due.sh`, `subscribe.sh`) is bash.
 > - **R33:** author_association is CONTRIBUTOR for private org members in event payloads; the guard checks the author's repo permission instead.
 > - **Secret passing (R26, final review):** the stub passes `CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}` explicitly instead of `secrets: inherit`. `inherit` works only for callers in the same organization or enterprise, and most subscribers are under a different owner than the toolkit. `inherit` would also hand every subscriber secret to a workflow referenced at `@main`.
+>
+> **Verified live (2026-11-18), on two private sandbox repos: one under the toolkit's owner and one under a different owner.**
+> - **CI and release:** devagents CI passes on GitHub's runners, including the Claude Code install and `claude plugin validate --strict`. Release 1.0.0 created `v1.0.0` and `v1`.
+> - **Subscribe:** the PR holds exactly the stub, `lefthook.yml` and `prepare`. The secret is set. A second run prints "already subscribed" and opens nothing.
+> - **`smoke`, by dispatch and by PR, same owner and cross-owner:**
+>   - The OIDC exchange returns a Claude App token.
+>   - The explicitly passed secret reaches the reusable workflow (R26).
+>   - `fable` resolves to `claude-fable-5-2`, and `--effort`, `--fallback-model` and `--max-turns` are accepted.
+>   - Runs take 2 turns with 0 permission denials.
+>   - The plugin's skills load from `--plugin-dir`. This was checked locally with the action's CLI version, because the action hides the agent's output.
+> - **PR guard:**
+>   - A private org member with write access passes the permission check (R33), and the job runs in `pr` mode.
+>   - A fork PR to a private repo starts no run, which is GitHub's default for private repos.
+>   - On the subscription PR itself, the action skips its own run because the workflow file differs from the default branch. That is expected.
+> - **Hooks in a clone:**
+>   - A script with SC2086 is blocked.
+>   - `CI=1` skips the checks.
+>   - A push runs `dupes` and `unused`.
+>   - Offline with an empty cache, lefthook warns and the commit goes through.
+> - **Not verified live:**
+>   - a PR from a read-access user (there is no second account)
+>   - moving `v1` on a 1.x release after 1.0.0
+>   - the inner fork check on a repo that allows fork PR workflows (bats covers the expression)
 
 ## Context
 
@@ -205,7 +228,7 @@ Load spreading is automatic: weekly jobs run on weekday `hash(repo+job) % 7`, an
      - `timeout-minutes` from the merged config
      - the prompt carries the mode (`bot` on schedule or dispatch, `pr` on PR events)
 
-**Known risk:** the Claude-App OIDC token exchange inside a cross-owner reusable workflow is unverified. `smoke` tests it first. Fallback: a custom GitHub App token per owner, passed as `github_token`.
+**Resolved risk:** the Claude-App OIDC token exchange inside a cross-owner reusable workflow works. It was verified live on 2026-11-18 (see the note at the top). If it ever breaks, the fallback is a custom GitHub App token per owner, passed as `github_token`.
 
 ### `/devagents:subscribe owner/repo [--hooks]`
 1. Check the Claude GitHub App can access the repo. If not, print the install link (once per owner, "All repositories").
